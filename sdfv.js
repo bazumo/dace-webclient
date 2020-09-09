@@ -30,6 +30,14 @@ function init_sdfv(sdfg, user_transform = null) {
         }
     });
 
+    document.getElementById("stroke-color").onchange = (ev) => {
+      document.documentElement.style.setProperty(
+        "--stroke-color",
+        ev.target.value
+      );
+    };
+  
+
     if (sdfg !== null)
         renderer = new SDFGRenderer(sdfg, document.getElementById('contents'),
                                     mouse_event, user_transform);

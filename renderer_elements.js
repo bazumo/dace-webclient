@@ -253,6 +253,15 @@ class Edge extends SDFGElement {
         ctx.strokeStyle = "black";
     }
 
+
+    strokeStyle() {
+      const stroke_color = getComputedStyle(
+        document.documentElement
+      ).getPropertyValue("--stroke-color");
+
+      return stroke_color;
+    }
+
     tooltip(container, renderer) {
         let dsettings = renderer.view_settings();
         let attr = this.attributes();
