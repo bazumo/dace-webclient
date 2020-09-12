@@ -1,0 +1,19 @@
+{
+  "name": "dace-webclient",
+  "version": "1.0.0",
+  "description": "This repository hosts the JavaScript side for web and VSCode clients of DaCe and the DIODE.",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bazumo/dace-webclient.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/bazumo/dace-webclient/issues"
+  },
+  "homepage": "https://github.com/bazumo/dace-webclient#readme"
+}
