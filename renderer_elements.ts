@@ -1,15 +1,27 @@
 // Copyright 2019-2020 ETH Zurich and the DaCe authors. All rights reserved.
 
+
 class SDFGElement {
+    data: any;
+    id: any;
+    parent_id: number | null;
+    sdfg: SDFGRoot;
+    in_connectors: never[];
+    out_connectors: never[];
+    stroke_color: string = "black";
+    width: any;
+    height: any;
+
+    x: number = 0;
+    y: number = 0;
     // Parent ID is the state ID, if relevant
-    constructor(elem, elem_id, sdfg, parent_id = null) {
+    constructor(elem: SDFGNode, elem_id: string, sdfg: SDFGRoot, parent_id: number | null = null) {
         this.data = elem;
         this.id = elem_id;
         this.parent_id = parent_id;
         this.sdfg = sdfg;
         this.in_connectors = [];
         this.out_connectors = [];
-        this.stroke_color = null;
         this.set_layout();
     }
 
@@ -19,9 +31,9 @@ class SDFGElement {
         this.height = this.data.layout.height;
     }
 
-    draw(renderer, ctx, mousepos) {}
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {}
 
-    debug_draw(renderer, ctx) {
+    debug_draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D) {
         if (renderer.debug_draw) {
             // Print the center and bounding box in debug mode.
             ctx.beginPath();
@@ -34,6 +46,7 @@ class SDFGElement {
                 this.width, this.height);
         }
     }
+
 
     attributes() {
         return this.data.attributes;
@@ -66,7 +79,7 @@ class SDFGElement {
     }
 
     // General bounding-box intersection function. Returns true iff point or rectangle intersect element.
-    intersect(x, y, w = 0, h = 0) {
+    intersect(x: number, y: number, w = 0, h = 0) {
         if (w == 0 || h == 0) {  // Point-element intersection
             return (x >= this.x - this.width / 2.0) &&
                 (x <= this.x + this.width / 2.0) &&
@@ -80,7 +93,7 @@ class SDFGElement {
         }
     }
 
-    contained_in(x, y, w = 0, h = 0) {
+    contained_in(x: number, y: number, w = 0, h = 0) {
         if (w === 0 || h === 0)
             return false;
 
@@ -104,7 +117,7 @@ class SDFGElement {
 
 // SDFG as an element (to support properties)
 class SDFG extends SDFGElement {
-    constructor(sdfg) {
+    constructor(sdfg: SDFGType) {
         super(sdfg, -1, sdfg);
     }
 
@@ -117,7 +130,7 @@ class SDFG extends SDFGElement {
 }
 
 class State extends SDFGElement {
-    draw(renderer, ctx, mousepos) {
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         let topleft = this.topleft();
         let visible_rect = renderer.visible_rect;
         let clamped = {x: Math.max(topleft.x, visible_rect.x),
@@ -162,7 +175,7 @@ class State extends SDFGElement {
         ctx.strokeStyle = "black";
     }
 
-    simple_draw(renderer, ctx, mousepos) {
+    simple_draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         // Fast drawing function for small states
         let topleft = this.topleft();
 
@@ -204,8 +217,8 @@ class State extends SDFGElement {
     }
 }
 
-class Node extends SDFGElement {
-    draw(renderer, ctx, mousepos) {
+class NodeClass extends SDFGElement {
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         let topleft = this.topleft();
         ctx.fillStyle = "white";
         ctx.fillRect(topleft.x, topleft.y, this.width, this.height);
@@ -216,7 +229,7 @@ class Node extends SDFGElement {
         ctx.fillText(this.label(), this.x - textw / 2, this.y + LINEHEIGHT / 4);
     }
 
-    simple_draw(renderer, ctx, mousepos) {
+    simple_draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         // Fast drawing function for small nodes
         let topleft = this.topleft();
         ctx.fillStyle = "white";
@@ -243,7 +256,8 @@ class Node extends SDFGElement {
 }
 
 class Edge extends SDFGElement {
-    draw(renderer, ctx, mousepos) {
+    points: any;
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         let edge = this;
 
         ctx.beginPath();
@@ -363,7 +377,7 @@ class Edge extends SDFGElement {
 }
 
 class Connector extends SDFGElement {
-    draw(renderer, ctx, mousepos) {
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         let scope_connector = (this.data.name.startsWith("IN_") || this.data.name.startsWith("OUT_"));
         let topleft = this.topleft();
         ctx.beginPath();
@@ -417,8 +431,10 @@ class Connector extends SDFGElement {
     }
 }
 
-class AccessNode extends Node {
-    draw(renderer, ctx, mousepos) {
+class AccessNode extends NodeClass {
+
+
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         let topleft = this.topleft();
         ctx.beginPath();
         drawEllipse(ctx, topleft.x, topleft.y, this.width, this.height);
@@ -454,10 +470,12 @@ class AccessNode extends Node {
         var textmetrics = ctx.measureText(this.label());
         ctx.fillText(this.label(), this.x - textmetrics.width / 2.0, this.y + LINEHEIGHT / 4.0);
     }
+
 }
 
-class ScopeNode extends Node {
-    draw(renderer, ctx, mousepos) {
+class ScopeNode extends NodeClass {
+   
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         let draw_shape;
         if (this.data.node.attributes.is_collapsed) {
             draw_shape = () => drawHexagon(ctx, this.x, this.y, this.width, this.height);
@@ -487,6 +505,7 @@ class ScopeNode extends Node {
             this.width, this.height,
             SCOPE_LOD);
     }
+  
 
     far_label() {
         let result = this.attributes().label;
@@ -503,7 +522,7 @@ class ScopeNode extends Node {
         }
         return result;
     }
-
+ 
     close_label(renderer) {
         if (!renderer.inclusive_ranges)
             return this.label();
@@ -530,6 +549,7 @@ class ScopeNode extends Node {
         }
         return result + ']';
     }
+  
 }
 
 class EntryNode extends ScopeNode {
@@ -540,21 +560,22 @@ class ExitNode extends ScopeNode {
     scopeend() { return true; }
 }
 
-class MapEntry extends EntryNode { stroketype(ctx) { ctx.setLineDash([1, 0]); } }
-class MapExit extends ExitNode { stroketype(ctx) { ctx.setLineDash([1, 0]); } }
-class ConsumeEntry extends EntryNode { stroketype(ctx) { ctx.setLineDash([5, 3]); } }
-class ConsumeExit extends ExitNode { stroketype(ctx) { ctx.setLineDash([5, 3]); } }
-class PipelineEntry extends EntryNode { stroketype(ctx) { ctx.setLineDash([10, 3]); } }
-class PipelineExit extends ExitNode { stroketype(ctx) { ctx.setLineDash([10, 3]); } }
+class MapEntry extends EntryNode { stroketype(ctx: CustomCanvasRenderingContext2D) { ctx.setLineDash([1, 0]); } }
+class MapExit extends ExitNode { stroketype(ctx: CustomCanvasRenderingContext2D) { ctx.setLineDash([1, 0]); } }
+class ConsumeEntry extends EntryNode { stroketype(ctx: CustomCanvasRenderingContext2D) { ctx.setLineDash([5, 3]); } }
+class ConsumeExit extends ExitNode { stroketype(ctx: CustomCanvasRenderingContext2D) { ctx.setLineDash([5, 3]); } }
+class PipelineEntry extends EntryNode { stroketype(ctx: CustomCanvasRenderingContext2D) { ctx.setLineDash([10, 3]); } }
+class PipelineExit extends ExitNode { stroketype(ctx: CustomCanvasRenderingContext2D) { ctx.setLineDash([10, 3]); } }
 
-class EmptyTasklet extends Node {
-    draw(renderer, ctx, mousepos) {
+class EmptyTasklet extends NodeClass {
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         // Do nothing
     }
 }
 
-class Tasklet extends Node {
-    draw(renderer, ctx, mousepos) {
+class Tasklet extends NodeClass {
+ 
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         let topleft = this.topleft();
         drawOctagon(ctx, topleft, this.width, this.height);
         ctx.strokeStyle = this.strokeStyle();
@@ -604,10 +625,12 @@ class Tasklet extends Node {
         let textmetrics = ctx.measureText(this.label());
         ctx.fillText(this.label(), this.x - textmetrics.width / 2.0, this.y + LINEHEIGHT / 2.0);
     }
+  
 }
 
-class Reduce extends Node {
-    draw(renderer, ctx, mousepos) {
+class Reduce extends NodeClass {
+  
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         let topleft = this.topleft();
         let draw_shape = () => {
             ctx.beginPath();
@@ -632,10 +655,12 @@ class Reduce extends Node {
             this.width, this.height,
             SCOPE_LOD);
     }
+  
 }
 
-class NestedSDFG extends Node {
-    draw(renderer, ctx, mousepos) {
+class NestedSDFG extends NodeClass {
+
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         if (this.data.node.attributes.is_collapsed) {
             let topleft = this.topleft();
             drawOctagon(ctx, topleft, this.width, this.height);
@@ -661,6 +686,7 @@ class NestedSDFG extends Node {
         // Draw nested graph
         draw_sdfg(renderer, ctx, this.data.graph, mousepos);
     }
+  
 
     set_layout() {
         if (this.data.node.attributes.is_collapsed) {
@@ -687,8 +713,9 @@ class NestedSDFG extends Node {
     label() { return ""; }
 }
 
-class LibraryNode extends Node {
-    _path(ctx) {
+class LibraryNode extends NodeClass {
+  
+    _path(ctx: CustomCanvasRenderingContext2D) {
         let hexseg = this.height / 6.0;
         let topleft = this.topleft();
         ctx.beginPath();
@@ -700,7 +727,8 @@ class LibraryNode extends Node {
         ctx.closePath();
     }
 
-    _path2(ctx) {
+
+    _path2(ctx: CustomCanvasRenderingContext2D) {
         let hexseg = this.height / 6.0;
         let topleft = this.topleft();
         ctx.beginPath();
@@ -709,7 +737,7 @@ class LibraryNode extends Node {
         ctx.lineTo(topleft.x + this.width, topleft.y + hexseg);
     }
 
-    draw(renderer, ctx, mousepos) {
+    draw(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, mousepos: Mousepos) {
         ctx.fillStyle = "white";
         this._path(ctx);
         ctx.fill();
@@ -722,12 +750,13 @@ class LibraryNode extends Node {
         let textw = ctx.measureText(this.label()).width;
         ctx.fillText(this.label(), this.x - textw / 2, this.y + LINEHEIGHT / 4);
     }
+  
 }
 
 //////////////////////////////////////////////////////
 
 // Draw an entire SDFG
-function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
+function draw_sdfg(renderer: SDFGRenderer, ctx: CustomCanvasRenderingContext2D, sdfg_dagre: Graph, mousepos: Mousepos) {
     let ppp = renderer.canvas_manager.points_per_pixel();
 
     // Render state machine
@@ -740,7 +769,7 @@ function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
         });
 
 
-    visible_rect = renderer.visible_rect;
+    const { visible_rect } = renderer;
 
     // Render each visible state's contents
     g.nodes().forEach(v => {
@@ -797,7 +826,7 @@ function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
 }
 
 // Translate an SDFG by a given offset
-function offset_sdfg(sdfg, sdfg_graph, offset) {
+function offset_sdfg(sdfg: SDFGNode, sdfg_graph: Graph, offset: Point) {
     sdfg.nodes.forEach((state, id) => {
         let g = sdfg_graph.node(id);
         g.x += offset.x;
@@ -817,7 +846,7 @@ function offset_sdfg(sdfg, sdfg_graph, offset) {
 }
 
 // Translate nodes, edges, and connectors in a given SDFG state by an offset
-function offset_state(state, state_graph, offset) {
+function offset_state(state: SDFGNode, state_graph, offset) {
     let drawn_nodes = new Set();
 
     state.nodes.forEach((n, nid) => {
@@ -856,8 +885,8 @@ function offset_state(state, state_graph, offset) {
 
 ///////////////////////////////////////////////////////
 
-function drawAdaptiveText(ctx, renderer, far_text, close_text,
-    x, y, w, h, ppp_thres, max_font_size = 50,
+function drawAdaptiveText(ctx: CustomCanvasRenderingContext2D, renderer: SDFGRenderer, far_text: string, close_text: string,
+    x: number, y: number, w: number, h: number, ppp_thres: number, max_font_size = 50,
     font_multiplier = 16) {
     let ppp = renderer.canvas_manager.points_per_pixel();
     let label = close_text;
@@ -885,7 +914,7 @@ function drawAdaptiveText(ctx, renderer, far_text, close_text,
         ctx.font = oldfont;
 }
 
-function drawHexagon(ctx, x, y, w, h, offset) {
+function drawHexagon(ctx: CustomCanvasRenderingContext2D, x: number, y: number, w: number, h:number) {
     let topleft = { x: x - w / 2.0, y: y - h / 2.0 };
     let hexseg = h / 3.0;
     ctx.beginPath();
@@ -899,7 +928,7 @@ function drawHexagon(ctx, x, y, w, h, offset) {
     ctx.closePath();
 }
 
-function drawOctagon(ctx, topleft, width, height) {
+function drawOctagon(ctx: CustomCanvasRenderingContext2D, topleft: Point, width: number, height: number) {
     let octseg = height / 3.0;
     ctx.beginPath();
     ctx.moveTo(topleft.x, topleft.y + octseg);
@@ -915,7 +944,7 @@ function drawOctagon(ctx, topleft, width, height) {
 }
 
 // Adapted from https://stackoverflow.com/a/2173084/6489142
-function drawEllipse(ctx, x, y, w, h) {
+function drawEllipse(ctx: CustomCanvasRenderingContext2D, x: number, y: number, w: number, h:  number) {
     var kappa = .5522848,
         ox = (w / 2) * kappa, // control point offset horizontal
         oy = (h / 2) * kappa, // control point offset vertical
@@ -931,7 +960,7 @@ function drawEllipse(ctx, x, y, w, h) {
     ctx.bezierCurveTo(xm - ox, ye, x, ym + oy, x, ym);
 }
 
-function drawArrow(ctx, p1, p2, size, offset) {
+function drawArrow(ctx: CustomCanvasRenderingContext2D, p1: Point, p2: Point, size: number) {
     ctx.save();
     // Rotate the context to point along the path
     let dx = p2.x - p1.x;
@@ -949,7 +978,7 @@ function drawArrow(ctx, p1, p2, size, offset) {
     ctx.restore();
 }
 
-function drawTrapezoid(ctx, topleft, node, inverted = false) {
+function drawTrapezoid(ctx: CustomCanvasRenderingContext2D, topleft: Point, node, inverted = false) {
     ctx.beginPath();
     if (inverted) {
         ctx.moveTo(topleft.x, topleft.y);
@@ -968,7 +997,7 @@ function drawTrapezoid(ctx, topleft, node, inverted = false) {
 }
 
 // Returns the distance from point p to line defined by two points (line1, line2)
-function ptLineDistance(p, line1, line2) {
+function ptLineDistance(p: Point, line1: Point, line2: Point) {
     let dx = (line2.x - line1.x);
     let dy = (line2.y - line1.y);
     let res = dy * p.x - dx * p.y + line2.x * line1.y - line2.y * line1.x;
@@ -976,8 +1005,9 @@ function ptLineDistance(p, line1, line2) {
     return Math.abs(res) / Math.sqrt(dy * dy + dx * dx);
 }
 
+// TODO Rename Node in other files
 var SDFGElements = {
-    SDFGElement: SDFGElement, SDFG: SDFG, State: State, Node: Node, Edge: Edge, Connector: Connector, AccessNode: AccessNode,
+    SDFGElement: SDFGElement, SDFG: SDFG, State: State, Node: NodeClass, Edge: Edge, Connector: Connector, AccessNode: AccessNode,
     ScopeNode: ScopeNode, EntryNode: EntryNode, ExitNode: ExitNode, MapEntry: MapEntry, MapExit: MapExit,
     ConsumeEntry: ConsumeEntry, ConsumeExit: ConsumeExit, EmptyTasklet: EmptyTasklet, Tasklet: Tasklet, Reduce: Reduce,
     PipelineEntry: PipelineEntry, PipelineExit: PipelineExit, NestedSDFG: NestedSDFG, LibraryNode: LibraryNode

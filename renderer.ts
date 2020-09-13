@@ -25,7 +25,7 @@ class CanvasManager {
     animating: boolean;
     animate_target: null;
     indices: Index[];
-    renderer: any;
+    renderer: SDFGRenderer;
     drawables: Drawable[];
     prev_time: number | null;
     anim_id: null | number;
@@ -34,7 +34,7 @@ class CanvasManager {
     static counter() {
         return CanvasManager._canvas_manager_counter++;
     }
-    constructor(ctx: CustomCanvasRenderingContext2D, renderer: any, canvas: any) {
+    constructor(ctx: CustomCanvasRenderingContext2D, renderer: SDFGRenderer, canvas: any) {
         this.ctx = ctx;
         this.ctx.lod = true;
         this.canvas = canvas;
@@ -242,7 +242,7 @@ class CanvasManager {
      * @param {*} sdfg_list         List of SDFGs and nested SDFGs
      * @param {*} state_parent_list List of parent elements to SDFG states
      */
-    translate_element(el, old_mousepos, new_mousepos, entire_graph, sdfg_list,
+    move_node_and_connectors(el, old_mousepos, new_mousepos, entire_graph, sdfg_list,
         state_parent_list) {
         this.stopAnimation();
 
@@ -379,7 +379,7 @@ class CanvasManager {
                 state.y += dy;
                 const g = state.data.graph;
                 if (g) {
-                    g.nodes().forEach(node_id => {
+                    g.nodes().forEach((node_id: number) => {
                         const node = g.node(node_id);
                         move_node_and_connectors(node);
                     });
@@ -543,7 +543,7 @@ function boundingBox(elements) {
     return { x: bb.x1, y: bb.y1, width: bb.x2 - bb.x1, height: bb.y2 - bb.y1 };
 }
 
-function calculateEdgeBoundingBox(edge: Edge) {
+function calculateEdgeBoundingBox(edge: EdgeType): Rect {
     // iterate over all points, calculate the size of the bounding box
     let bb = {
         x1: edge.points[0].x,
@@ -560,22 +560,22 @@ function calculateEdgeBoundingBox(edge: Edge) {
         bb.y2 = p.y > bb.y2 ? p.y : bb.y2;
     });
 
-    bb = {
+    const bbRect: Rect = {
         'x': bb.x1, 'y': bb.y1, 'width': (bb.x2 - bb.x1),
         'height': (bb.y2 - bb.y1)
     };
-    if (bb.width <= 5) {
-        bb.width = 10;
-        bb.x -= 5;
+    if (bbRect.width <= 5) {
+        bbRect.width = 10;
+        bbRect.x -= 5;
     }
-    if (bb.height <= 5) {
-        bb.height = 10;
-        bb.y -= 5;
+    if (bbRect.height <= 5) {
+        bbRect.height = 10;
+        bbRect.y -= 5;
     }
-    return bb;
+    return bbRect;
 }
 
-function calculateNodeSize(sdfg_state, node, ctx) {
+function calculateNodeSize(sdfg_state: SDFGNode, node: SDFGNode, ctx: CustomCanvasRenderingContext2D) {
     let labelsize = ctx.measureText(node.label).width;
     let inconnsize = 2 * LINEHEIGHT * Object.keys(node.attributes.layout.in_connectors).length - LINEHEIGHT;
     let outconnsize = 2 * LINEHEIGHT * Object.keys(node.attributes.layout.out_connectors).length - LINEHEIGHT;
@@ -622,11 +622,11 @@ function calculateNodeSize(sdfg_state, node, ctx) {
 }
 
 // Layout SDFG elements (states, nodes, scopes, nested SDFGs)
-function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list) {
+function relayout_sdfg(ctx: CustomCanvasRenderingContext2D, sdfg: SDFGRoot, sdfg_list, state_parent_list): Graph {
     let STATE_MARGIN = 4 * LINEHEIGHT;
 
     // Layout the SDFG as a dagre graph
-    let g = new dagre.graphlib.Graph();
+    let g: Graph = new dagre.graphlib.Graph();
     g.setGraph({});
     g.setDefaultEdgeLabel(function (u, v) { return {}; });
 
@@ -712,12 +712,12 @@ function relayout_sdfg(ctx, sdfg, sdfg_list, state_parent_list) {
     return g;
 }
 
-function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list) {
+function relayout_state(ctx: CustomCanvasRenderingContext2D, sdfg_state: SDFGNode, sdfg: SDFGRoot, sdfg_list, state_parent_list) {
     // layout the state as a dagre graph
-    let g = new dagre.graphlib.Graph({ multigraph: true });
+    let g = new dagre.graphlib.Graph<SDFGElement>({ multigraph: true });
 
     // Set layout options and a simpler algorithm for large graphs
-    let layout_options = { ranksep: 30 };
+    let layout_options: dagre.GraphLabel = { ranksep: 30 };
     if (sdfg_state.nodes.length >= 1000)
         layout_options.ranker = 'longest-path';
 
@@ -737,7 +737,7 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list) {
         toplevel_nodes = Object.keys(sdfg_state.nodes);
     let drawn_nodes = new Set();
 
-    function layout_node(node) {
+    function layout_node(node: SDFGNode) {
         let nested_g = null;
         node.attributes.layout = {};
 
@@ -762,6 +762,7 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list) {
         }
 
         // Dynamically create node type
+        console.log(node.type)
         let obj = new SDFGElements[node.type]({ node: node, graph: nested_g }, node.id, sdfg, sdfg_state.id);
 
         // If it's a nested SDFG, we need to record the node as all of its
@@ -938,7 +939,7 @@ class SDFGRenderer {
 
     // Rendering-related fields
     container: any;
-    ctx!: | CanvasRenderingContext2D;
+    ctx!: CustomCanvasRenderingContext2D;
     canvas!: HTMLCanvasElement;
     toolbar!: HTMLDivElement;
     menu: null = null;
@@ -959,8 +960,8 @@ class SDFGRenderer {
     move_mode: boolean = false;
     box_select_rect: null = null;
     box_select_mode: boolean = false;
-    mousepos: null = null; // Last position of the mouse pointer (in canvas coordinates)
-    realmousepos: null = null; // Last position of the mouse pointer (in pixel coordinates)
+    mousepos: Mousepos = null; // Last position of the mouse pointer (in canvas coordinates)
+    realmousepos: Mousepos = null; // Last position of the mouse pointer (in pixel coordinates)
     dragging: boolean = false;
     drag_start: null = null; // Null if the mouse/touch is not activated
     drag_second_start: null = null; // Null if two touch points are not activated
@@ -976,7 +977,7 @@ class SDFGRenderer {
     dbg_mouse_coords: HTMLSpanElement | undefined;
     bgcolor: string;
     graph: any;
-    visible_rect: { x: any; y: any; w: number; h: number; };
+    visible_rect?: RectHW;
 
     constructor(sdfg, container, on_mouse_event = null, user_transform = null,
         debug_draw = false) {
@@ -1556,7 +1557,7 @@ class SDFGRenderer {
 
     for_all_sdfg_elements(func: ElementFunction) {
         // Traverse nested SDFGs recursively
-        function traverse_recursive(sdfg) {
+        function traverse_recursive(sdfg: SDFGRoot) {
             sdfg.nodes.forEach((state, state_id) => {
                 // States
                 func('states', { sdfg: sdfg, id: state_id }, state);
