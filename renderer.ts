@@ -1,12 +1,40 @@
 // Copyright 2019-2020 ETH Zurich and the DaCe authors. All rights reserved.
 
+
+interface CustomCanvasRenderingContext2D extends CanvasRenderingContext2D {
+    lod: boolean;
+    _custom_transform_matrix: DOMMatrix
+    custom_inverseTransformMultiply: (x: number, y: number) => DOMPoint
+    setTransform: any;
+}
+
+
 class CanvasManager {
     // Manages translation and scaling of canvas rendering
 
+    public ctx: CustomCanvasRenderingContext2D
+    public user_transform: DOMMatrix
+
+    private static _canvas_manager_counter: number = 0
+    private _svg: SVGSVGElement = document.createElementNS("http://www.w3.org/2000/svg", 'svg')
+    contention: number;
+    scale_origin: { x: number; y: number; };
+    private _destroying: boolean;
+    scalef: number;
+    request_scale: boolean;
+    animating: boolean;
+    animate_target: null;
+    indices: Index[];
+    renderer: any;
+    drawables: Drawable[];
+    prev_time: number | null;
+    anim_id: null | number;
+    canvas: any;
+
     static counter() {
-        return _canvas_manager_counter++;
+        return CanvasManager._canvas_manager_counter++;
     }
-    constructor(ctx, renderer, canvas) {
+    constructor(ctx: CustomCanvasRenderingContext2D, renderer: any, canvas: any) {
         this.ctx = ctx;
         this.ctx.lod = true;
         this.canvas = canvas;
@@ -29,7 +57,6 @@ class CanvasManager {
 
         this.contention = 0;
 
-        this._svg = document.createElementNS("http://www.w3.org/2000/svg", 'svg');
 
         this.user_transform = this._svg.createSVGMatrix();
 
@@ -40,7 +67,7 @@ class CanvasManager {
         this.animating = false;
     }
 
-    svgPoint(x, y) {
+    svgPoint(x: number, y: number) {
         let pt = this._svg.createSVGPoint();
         pt.x = x; pt.y = y;
         return pt;
@@ -98,7 +125,7 @@ class CanvasManager {
         };
 
         let setTransform_func = _ctx.setTransform;
-        _ctx.setTransform = function (a, b, c, d, e, f) {
+        _ctx.setTransform = function (a: number, b: number, c: number, d: number, e: number, f: number) {
             _ctx._custom_transform_matrix.a = a;
             _ctx._custom_transform_matrix.b = b;
             _ctx._custom_transform_matrix.c = c;
@@ -109,7 +136,7 @@ class CanvasManager {
             return setTransform_func.call(_ctx, a, b, c, d, e, f);
         };
 
-        _ctx.custom_inverseTransformMultiply = function (x, y) {
+        _ctx.custom_inverseTransformMultiply = function (x: number, y: number) {
             let pt = svg.createSVGPoint();
             pt.x = x; pt.y = y;
             checker();
@@ -122,12 +149,12 @@ class CanvasManager {
         this.clearDrawables();
     }
 
-    addDrawable(obj) {
+    addDrawable(obj: Drawable) {
         this.drawables.push(obj);
         this.indices.push({ "c": CanvasManager.counter(), "d": obj });
     }
 
-    removeDrawable(drawable) {
+    removeDrawable(drawable: Drawable) {
         this.drawables = this.drawables.filter(x => x != drawable);
     }
 
@@ -139,7 +166,7 @@ class CanvasManager {
         this.indices = [];
     }
 
-    scale(diff, x = 0, y = 0) {
+    scale(diff: number, x = 0, y = 0) {
         this.stopAnimation();
         if (this.request_scale || this.contention > 0) {
             return;
@@ -160,8 +187,8 @@ class CanvasManager {
         this.contention--;
     }
 
-    // Sets the view to the square around the input rectangle
-    set_view(rect) {
+    // Sets the view to the square around the input rectangle (might not be DOMRect)
+    set_view(rect: Rect) {
         this.stopAnimation();
         this.user_transform = this._svg.createSVGMatrix();
         let canvas_w = this.canvas.width;
@@ -201,7 +228,7 @@ class CanvasManager {
         this.scalef = 1.0;
     }
 
-    translate(x, y) {
+    translate(x: number, y: number) {
         this.stopAnimation();
         this.user_transform = this.user_transform.translate(x / this.user_transform.a, y / this.user_transform.d);
     }
@@ -404,15 +431,15 @@ class CanvasManager {
         });
     }
 
-    mapPixelToCoordsX(xpos) {
+    mapPixelToCoordsX(xpos: number) {
         return this.svgPoint(xpos, 0).matrixTransform(this.user_transform.inverse()).x;
     }
 
-    mapPixelToCoordsY(ypos) {
+    mapPixelToCoordsY(ypos: number) {
         return this.svgPoint(0, ypos).matrixTransform(this.user_transform.inverse()).y;
     }
 
-    noJitter(x) {
+    noJitter(x: number) {
         x = parseFloat(x.toFixed(3));
         x = Math.round(x * 100) / 100;
         return x;
@@ -426,13 +453,17 @@ class CanvasManager {
         return (right - left) / this.canvas.width;
     }
 
-    draw(now = null) {
+    draw(now: number | null = null) {
         if (this._destroying)
             return;
 
-        let dt = now - this.prev_time;
-        if (!now || !this.prev_time)
+        let dt;
+        if (!now || !this.prev_time) {
             dt = null;
+        } else {
+            dt = now - this.prev_time
+        }
+
         if (now)
             this.prev_time = now;
 
@@ -471,19 +502,20 @@ class CanvasManager {
     }
 }
 
-function getQuadraticAngle(t, sx, sy, cp1x, cp1y, ex, ey) {
+function getQuadraticAngle(t: number, sx: number, sy: number, cp1x: number, cp1y: number, ex: number, ey: number) {
     let dx = 2 * (1 - t) * (cp1x - sx) + 2 * t * (ex - cp1x);
     let dy = 2 * (1 - t) * (cp1y - sy) + 2 * t * (ey - cp1y);
     return -Math.atan2(dx, dy) + 0.5 * Math.PI;
 }
 
-function calculateBoundingBox(g) {
+function calculateBoundingBox(g: Graph) {
     // iterate over all objects, calculate the size of the bounding box
-    let bb = {};
-    bb.width = 0;
-    bb.height = 0;
+    let bb = {
+        width: 0,
+        height: 0
+    };
 
-    g.nodes().forEach(function (v) {
+    g.nodes().forEach(function (v: GraphNode) {
         let x = g.node(v).x + g.node(v).width / 2.0;
         let y = g.node(v).y + g.node(v).height / 2.0;
         if (x > bb.width) bb.width = x;
@@ -511,15 +543,17 @@ function boundingBox(elements) {
     return { x: bb.x1, y: bb.y1, width: bb.x2 - bb.x1, height: bb.y2 - bb.y1 };
 }
 
-function calculateEdgeBoundingBox(edge) {
+function calculateEdgeBoundingBox(edge: Edge) {
     // iterate over all points, calculate the size of the bounding box
-    let bb = {};
-    bb.x1 = edge.points[0].x;
-    bb.y1 = edge.points[0].y;
-    bb.x2 = edge.points[0].x;
-    bb.y2 = edge.points[0].y;
+    let bb = {
+        x1: edge.points[0].x,
+        y1: edge.points[0].y,
+        x2: edge.points[0].x,
+        y2: edge.points[0].y,
+    };
 
-    edge.points.forEach(function (p) {
+
+    edge.points.forEach(function (p: Point) {
         bb.x1 = p.x < bb.x1 ? p.x : bb.x1;
         bb.y1 = p.y < bb.y1 ? p.y : bb.y1;
         bb.x2 = p.x > bb.x2 ? p.x : bb.x2;
@@ -683,10 +717,10 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list) {
     let g = new dagre.graphlib.Graph({ multigraph: true });
 
     // Set layout options and a simpler algorithm for large graphs
-    let layout_options = {ranksep: 30};
+    let layout_options = { ranksep: 30 };
     if (sdfg_state.nodes.length >= 1000)
         layout_options.ranker = 'longest-path';
-        
+
     g.setGraph(layout_options);
 
 
@@ -896,42 +930,64 @@ function relayout_state(ctx, sdfg_state, sdfg, sdfg_list, state_parent_list) {
 }
 
 class SDFGRenderer {
+
+    // DIODE/SDFV-related fields
+    sdfg: any;
+    sdfg_list: {} = {};
+    state_parent_list: {} = {};  // List of all state's parent elements
+
+    // Rendering-related fields
+    container: any;
+    ctx!: | CanvasRenderingContext2D;
+    canvas!: HTMLCanvasElement;
+    toolbar!: HTMLDivElement;
+    menu: null = null;
+    last_visible_elements: null = null;
+    last_hovered_elements: null = null;
+    last_clicked_elements: null = null;
+    last_dragged_element: null = null;
+    tooltip: null = null;
+    tooltip_container: null | HTMLDivElement = null;
+
+
+    // View options
+    inclusive_ranges: boolean = false;
+
+
+
+    // Mouse-related fields
+    move_mode: boolean = false;
+    box_select_rect: null = null;
+    box_select_mode: boolean = false;
+    mousepos: null = null; // Last position of the mouse pointer (in canvas coordinates)
+    realmousepos: null = null; // Last position of the mouse pointer (in pixel coordinates)
+    dragging: boolean = false;
+    drag_start: null = null; // Null if the mouse/touch is not activated
+    drag_second_start: null = null; // Null if two touch points are not activated
+    external_mouse_handler: null; // TODO Type
+
+
+    // Selection related fields
+    selected_elements: never[] = [];
+    debug_draw: boolean;
+
+    canvas_manager!: CanvasManager;
+    dbg_info_box: HTMLDivElement | undefined;
+    dbg_mouse_coords: HTMLSpanElement | undefined;
+    bgcolor: string;
+    graph: any;
+    visible_rect: { x: any; y: any; w: number; h: number; };
+
     constructor(sdfg, container, on_mouse_event = null, user_transform = null,
-                debug_draw = false) {
+        debug_draw = false) {
         // DIODE/SDFV-related fields
         this.sdfg = sdfg;
-        this.sdfg_list = {};
-        this.state_parent_list = {}; // List of all state's parent elements
 
         // Rendering-related fields
         this.container = container;
-        this.ctx = null;
-        this.canvas = null;
-        this.toolbar = null;
-        this.menu = null;
-        this.last_visible_elements = null;
-        this.last_hovered_elements = null;
-        this.last_clicked_elements = null;
-        this.last_dragged_element = null;
-        this.tooltip = null;
-        this.tooltip_container = null;
-
-        // View options
-        this.inclusive_ranges = false;
 
         // Mouse-related fields
-        this.move_mode = false;
-        this.box_select_rect = null;
-        this.box_select_mode = false;
-        this.mousepos = null; // Last position of the mouse pointer (in canvas coordinates)
-        this.realmousepos = null; // Last position of the mouse pointer (in pixel coordinates)
-        this.dragging = false;
-        this.drag_start = null; // Null if the mouse/touch is not activated
-        this.drag_second_start = null; // Null if two touch points are not activated
         this.external_mouse_handler = on_mouse_event;
-
-        // Selection related fields
-        this.selected_elements = [];
 
         // Draw debug aids.
         this.debug_draw = debug_draw;
@@ -1282,7 +1338,7 @@ class SDFGRenderer {
     }
 
     // Draw a debug grid on the canvas to indicate coordinates.
-    debug_draw_grid(curx, cury, endx, endy, grid_width = 100) {
+    debug_draw_grid(curx: number, cury: number, endx: number, endy: number, grid_width = 100) {
         var lim_x_min = Math.floor(curx / grid_width) * grid_width;
         var lim_x_max = Math.ceil(endx / grid_width) * grid_width;
         var lim_y_min = Math.floor(cury / grid_width) * grid_width;
@@ -1416,7 +1472,7 @@ class SDFGRenderer {
     // states, nodes, connectors, edges, isedges (interstate edges). For example:
     // {'states': [{sdfg: sdfg_name, state: 1}, ...], nodes: [sdfg: sdfg_name, state: 1, node: 5],
     //              edges: [], isedges: [], connectors: []}
-    elements_in_rect(x, y, w, h) {
+    elements_in_rect(x: number, y: number, w: number, h: number) {
         let elements = {
             states: [], nodes: [], connectors: [],
             edges: [], isedges: []
@@ -1428,9 +1484,9 @@ class SDFGRenderer {
         return elements;
     }
 
-    do_for_intersected_elements(x, y, w, h, func) {
+    do_for_intersected_elements(x: number, y: number, w: number, h: number, func: ElementFunction) {
         // Traverse nested SDFGs recursively
-        function traverse_recursive(g, sdfg_name, sdfg_id) {
+        function traverse_recursive(g: Graph, sdfg_name: string, sdfg_id: string) {
             g.nodes().forEach(state_id => {
                 let state = g.node(state_id);
                 if (!state) return;
@@ -1498,7 +1554,7 @@ class SDFGRenderer {
             this.sdfg.sdfg_list_id);
     }
 
-    for_all_sdfg_elements(func) {
+    for_all_sdfg_elements(func: ElementFunction) {
         // Traverse nested SDFGs recursively
         function traverse_recursive(sdfg) {
             sdfg.nodes.forEach((state, state_id) => {
@@ -1530,7 +1586,7 @@ class SDFGRenderer {
         traverse_recursive(this.sdfg);
     }
 
-    for_all_elements(x, y, w, h, func) {
+    for_all_elements(x: number, y: number, w: number, h: number, func: ElementFunction) {
         // Traverse nested SDFGs recursively
         function traverse_recursive(g, sdfg_name) {
             g.nodes().forEach(state_id => {
@@ -1588,7 +1644,7 @@ class SDFGRenderer {
         traverse_recursive(this.graph, this.sdfg.attributes.name);
     }
 
-    find_elements_under_cursor(mouse_pos_x, mouse_pos_y) {
+    find_elements_under_cursor(mouse_pos_x: number, mouse_pos_y: number) {
         // Find all elements under the cursor.
         const elements = this.elements_in_rect(mouse_pos_x, mouse_pos_y, 0, 0);
         const clicked_states = elements.states;
