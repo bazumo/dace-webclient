@@ -1,105 +1,119 @@
 // Copyright 2019-2020 ETH Zurich and the DaCe authors. All rights reserved.
+//@ts-check
 
 class SDFGElement {
-    // Parent ID is the state ID, if relevant
-    constructor(elem, elem_id, sdfg, parent_id = null) {
-        this.data = elem;
-        this.id = elem_id;
-        this.parent_id = parent_id;
-        this.sdfg = sdfg;
-        this.in_connectors = [];
-        this.out_connectors = [];
-        this.stroke_color = null;
-        this.set_layout();
+  // Parent ID is the state ID, if relevant
+  constructor(elem, elem_id, sdfg, parent_id = null) {
+    
+    this.data = elem;
+    this.id = elem_id;
+    this.parent_id = parent_id;
+    this.sdfg = sdfg;
+    this.in_connectors = [];
+    this.out_connectors = [];
+    this.stroke_color = null;
+
+    this.x = 0;
+    this.y = 0;
+    this.set_layout();
+  }
+
+  set_layout() {
+    // dagre does not work well with properties, only fields
+    this.width = this.data.layout.width;
+    this.height = this.data.layout.height;
+  }
+
+  draw(renderer, ctx, mousepos) {}
+
+  /** @param {SDFGRenderer} renderer  */
+  debug_draw(renderer, ctx) {
+    if (renderer.debug_draw) {
+      // Print the center and bounding box in debug mode.
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, 1, 0, 2 * Math.PI, false);
+      ctx.fillStyle = "red";
+      ctx.fill();
+      ctx.strokeStyle = "red";
+      ctx.stroke();
+      ctx.strokeRect(
+        this.x - this.width / 2.0,
+        this.y - this.height / 2.0,
+        this.width,
+        this.height
+      );
     }
+  }
 
-    set_layout() {
-        // dagre does not work well with properties, only fields
-        this.width = this.data.layout.width;
-        this.height = this.data.layout.height;
+  attributes() {
+    return this.data.attributes;
+  }
+
+  type() {
+    return this.data.type;
+  }
+
+  label() {
+    return this.data.label;
+  }
+
+  long_label() {
+    return this.label();
+  }
+
+  // Produces HTML for a hover-tooltip
+  tooltip(container) {}
+
+  topleft() {
+    return { x: this.x - this.width / 2, y: this.y - this.height / 2 };
+  }
+
+  strokeStyle() {
+    if (this.stroke_color) return this.stroke_color;
+    return "black";
+  }
+
+  // General bounding-box intersection function. Returns true iff point or rectangle intersect element.
+  intersect(x, y, w = 0, h = 0) {
+    if (w == 0 || h == 0) {
+      // Point-element intersection
+      return (
+        x >= this.x - this.width / 2.0 &&
+        x <= this.x + this.width / 2.0 &&
+        y >= this.y - this.height / 2.0 &&
+        y <= this.y + this.height / 2.0
+      );
+    } else {
+      // Box-element intersection
+      return (
+        x <= this.x + this.width / 2.0 &&
+        x + w >= this.x - this.width / 2.0 &&
+        y <= this.y + this.height / 2.0 &&
+        y + h >= this.y - this.height / 2.0
+      );
     }
+  }
 
-    draw(renderer, ctx, mousepos) {}
+  contained_in(x, y, w = 0, h = 0) {
+    if (w === 0 || h === 0) return false;
 
-    debug_draw(renderer, ctx) {
-        if (renderer.debug_draw) {
-            // Print the center and bounding box in debug mode.
-            ctx.beginPath();
-            ctx.arc(this.x, this.y, 1, 0, 2 * Math.PI, false);
-            ctx.fillStyle = 'red';
-            ctx.fill();
-            ctx.strokeStyle = 'red';
-            ctx.stroke();
-            ctx.strokeRect(this.x - (this.width / 2.0), this.y - (this.height / 2.0),
-                this.width, this.height);
-        }
-    }
+    var box_start_x = x;
+    var box_end_x = x + w;
+    var box_start_y = y;
+    var box_end_y = y + h;
 
-    attributes() {
-        return this.data.attributes;
-    }
+    var el_start_x = this.x - this.width / 2.0;
+    var el_end_x = this.x + this.width / 2.0;
+    var el_start_y = this.y - this.height / 2.0;
+    var el_end_y = this.y + this.height / 2.0;
 
-    type() {
-        return this.data.type;
-    }
-
-    label() {
-        return this.data.label;
-    }
-
-    long_label() {
-        return this.label();
-    }
-
-    // Produces HTML for a hover-tooltip
-    tooltip(container) {
-    }
-
-    topleft() {
-        return { x: this.x - this.width / 2, y: this.y - this.height / 2 };
-    }
-
-    strokeStyle() {
-        if (this.stroke_color)
-            return this.stroke_color;
-        return "black";
-    }
-
-    // General bounding-box intersection function. Returns true iff point or rectangle intersect element.
-    intersect(x, y, w = 0, h = 0) {
-        if (w == 0 || h == 0) {  // Point-element intersection
-            return (x >= this.x - this.width / 2.0) &&
-                (x <= this.x + this.width / 2.0) &&
-                (y >= this.y - this.height / 2.0) &&
-                (y <= this.y + this.height / 2.0);
-        } else {                 // Box-element intersection
-            return (x <= this.x + this.width / 2.0) &&
-                (x + w >= this.x - this.width / 2.0) &&
-                (y <= this.y + this.height / 2.0) &&
-                (y + h >= this.y - this.height / 2.0);
-        }
-    }
-
-    contained_in(x, y, w = 0, h = 0) {
-        if (w === 0 || h === 0)
-            return false;
-
-        var box_start_x = x;
-        var box_end_x = x + w;
-        var box_start_y = y;
-        var box_end_y = y + h;
-
-        var el_start_x = this.x - (this.width / 2.0);
-        var el_end_x = this.x + (this.width / 2.0);
-        var el_start_y = this.y - (this.height / 2.0);
-        var el_end_y = this.y + (this.height / 2.0);
-
-        return box_start_x <= el_start_x &&
-            box_end_x >= el_end_x &&
-            box_start_y <= el_start_y &&
-            box_end_y >= el_end_y;
-    }
-
+    return (
+      box_start_x <= el_start_x &&
+      box_end_x >= el_end_x &&
+      box_start_y <= el_start_y &&
+      box_end_y >= el_end_y
+    );
+  }
 }
 
 // SDFG as an element (to support properties)
@@ -216,6 +230,11 @@ class Node extends SDFGElement {
         ctx.fillText(this.label(), this.x - textw / 2, this.y + LINEHEIGHT / 4);
     }
 
+    /**
+     * @param {SDFGRenderer} renderer
+     * @param {CustomCanvasRenderingContext2D} ctx
+     * @param {Point} mousepos
+     */
     simple_draw(renderer, ctx, mousepos) {
         // Fast drawing function for small nodes
         let topleft = this.topleft();
@@ -243,6 +262,11 @@ class Node extends SDFGElement {
 }
 
 class Edge extends SDFGElement {
+     /**
+     * @param {SDFGRenderer} renderer
+     * @param {CustomCanvasRenderingContext2D} ctx
+     * @param {Point} mousepos
+     */
     draw(renderer, ctx, mousepos) {
         let edge = this;
 
@@ -727,6 +751,12 @@ class LibraryNode extends Node {
 //////////////////////////////////////////////////////
 
 // Draw an entire SDFG
+/**
+ * @param {SDFGRenderer} renderer
+ * @param {CustomCanvasRenderingContext2D} ctx
+ * @param {dagre.graphlib.Graph<SDFGElement>} sdfg_dagre
+ * @param {Point} mousepos
+ */
 function draw_sdfg(renderer, ctx, sdfg_dagre, mousepos) {
     let ppp = renderer.canvas_manager.points_per_pixel();
 
